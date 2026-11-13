@@ -1,0 +1,80 @@
+Equipe: Patricia Lacerda, Livia Almeida e Ilanna C.
+Atividade: Respostas dos Treinos 1 ao 6 
+
+Treino 1. Escreva o código de status de cada situação:
+POST /categoriascom um nome que o usuário já tem para o mesmo tipo. - 409 (Conflito)
+PUT /fontes-destinos/12com tipo: "poupanca". - 400 
+GET /relatorios/categoriassem inicioe fim. - 400
+POST /auth/logincom a senha errada. 401 (Não autorizado)
+GET /rota-que-nao-existe. - 404 (não encontrado)
+POST /lancamentosválido.  - 201 (criado)
+
+
+
+Treino 2. Encontre o erro, diga a regra violada e corrigida:
+
+// routes/fontesDestinos.js
+router.delete('/:id', async (req, res) => {
+  const [r] = await db.query(
+    `DELETE FROM fontes_destinos WHERE id = ${req.params.id} AND usuario_id = ${req.auth.id}`
+  );
+  if (r.affectedRows === 0) {
+    res.status(404).json({ erro: 'Fonte/destino não encontrada.' });
+  }
+  res.status(204).end();
+});
+
+Erros encontrados: 
+O SQL esta montado com template string, porém a regra do projeto exige consultas parametrizadas com ?
+O SQL esta sendo executado dentro de rotas, mas ele deveria ficar isolado em models.
+Falta de return após o envio da mensagem de erro, onde ele tenta enviar duas respostas para a mesma requisição
+
+Correção do código:
+// models/FonteDestino.js
+static async excluir(id, usuarioId) {
+  const [r] = await db.query(
+    'DELETE FROM fontes_destinos WHERE id = ? AND usuario_id = ?',
+    [id, usuarioId]
+  );
+  return r.affectedRows > 0;
+}
+
+// routes/fontesDestinos.js
+router.delete('/:id', async (req, res) => {
+  const excluiu = await FonteDestino.excluir(req.params.id, req.auth.id);
+  if (!excluiu) {
+    return res.status(404).json({ erro: 'Fonte/destino não encontrada.' });
+  }
+  res.status(204).end();
+});
+
+Treino 3. Quais são as parcelas de R$ 250,00 em 7×? Confira que a soma dá R$ 250,00.
+Cálculo: R$ 250,00 em 7×
+
+25.000 centavos ÷ 7 = 3.571 centavos (base), com resto de 3 centavos.
+
+O resto é somado integralmente à primeira parcela.Parcelas:
+
+1ª parcela: R$ 35,74
+
+2ª a 7ª parcela: R$ 35,71 (6 parcelas)
+
+Prova real do checklist: R$ 35,74 + (6 × R$ 35,71) = R$ 250,00 exatos.
+
+
+Treino 4. Cartão com fechamento no dia 18 e vencimento no dia 3; compra de R$ 250,00 em 2× em 18/08/2026. Monte a tabela (valor, fechamento, vencimento e referência de cada parcela).
+ 
+Parcela     Valor     Fechamento   Vencimento
+   1/2     R$ 125,00   18/09/2026   03/10/2026
+   2/2     R$ 125,00   18/10/2026   03/11/2026
+
+
+   Treino 5. Cartão com fechamento no dia 31 e vencimento no dia 8; compra de R$ 120,00 em 2× em 31/01/2026. Cuidado com fevereiro.
+   
+Parcela     Valor     Fechamento   Vencimento
+   1/2     R$ 60,00   28/02/2026   08/03/2026
+   2/2     R$ 60,00   31/03/2026   08/04/2026
+
+
+Treino 6. Explique, em até 4 linhas, por que UNIQUEno banco é necessário mesmo que a rota faça um SELECTantes de inserir.
+Se a aplicação depender apenas de um SELECT antes do INSERT, duas requisições simultâneas podem realizar a busca no mesmo milissegundo, não encontrar o registro e prosseguir com a inserção simultaneamente, resultando em duplicidade (condição de corrida). A restrição UNIQUE garante que o próprio banco de dados bloqueie a segunda inserção concorrente (disparando o erro ER_DUP_ENTRY), o qual a API captura e converte de forma segura em um erro HTTP 409.
